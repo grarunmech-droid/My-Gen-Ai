@@ -1,6 +1,6 @@
 import streamlit as st
 from google import genai
-from google.genai import errors  # Imported to gracefully catch future API errors
+from google.genai import errors
 
 # UI Setup
 st.markdown(
@@ -13,14 +13,15 @@ st.markdown(
   unsafe_allow_html=True,
 )
 
-# Initialize Client using Streamlit Secrets for production safety
-if "mychat" not in st.session_state:
+# Initialize BOTH Client and Chat in Streamlit memory
+if "mychat" not in st.session_state or "robo" not in st.session_state:
     try:
-        # st.secrets automatically reads from your Streamlit Cloud dashboard settings
-        robo = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
-        st.session_state.mychat = robo.chats.create(model="gemini-flash-lite-latest")
+        # Save the client connection to session state
+        st.session_state.robo = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+        # Save the chat instance to session state
+        st.session_state.mychat = st.session_state.robo.chats.create(model="gemini-flash-lite-latest")
     except Exception as e:
-        st.error("Failed to initialize the AI Client. Please check your Secret keys configuration.")
+        st.error("Failed to initialize the AI Client. Check your Secret keys configuration.")
 
 # User Input
 question = st.text_input("", placeholder="Enter your Python question here...")
@@ -30,15 +31,15 @@ with col2:
 
 response_placeholder = st.empty()
 
-# Execute call with robust error handling to reveal hidden error strings
+# Execute call
 if send and question:
   if "mychat" in st.session_state:
       with st.spinner("Thinking..."):
           try:
+              # Calls the persistent chat session with the living client connection
               response = st.session_state.mychat.send_message(question)
               response_placeholder.write(response.text)
           except errors.ClientError as ce:
-              # This will bypass Streamlit's redaction and print the exact raw API error message
               st.error(f"Google API Client Error: {ce}")
           except Exception as e:
               st.error(f"An unexpected error occurred: {e}")
